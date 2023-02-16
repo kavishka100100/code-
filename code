@@ -1,0 +1,186 @@
+/*
+This example shows how to connect to Cayenne using an Ethernet W5100 shield and send/receive sample data.
+
+The CayenneMQTT Library is required to run this sketch. If you have not already done so you can install it from the Arduino IDE Library Manager.
+
+Steps:
+1. Set the Cayenne authentication info to match the authentication info from the Dashboard.
+2. Compile and upload the sketch.
+3. A temporary widget will be automatically generated in the Cayenne Dashboard. To make the widget permanent click the plus sign on the widget.
+*/
+
+//#define CAYENNE_DEBUG       // Uncomment to show debug messages
+#define CAYENNE_PRINT Serial  // Comment this out to disable prints and save space
+#include <CayenneMQTTEthernet.h>
+
+// Cayenne authentication info. This should be obtained from the Cayenne Dashboard.
+char username[] = "93d81eb0-a1cf-11ed-b193-d9789b2af62b";
+char password[] = "ba3592b572ee1373f38301ef8ba12fc8831581b0";
+char clientID[] = "4e2ae150-a2a5-11ed-8d53-d7cd1025126a";
+
+#include <dht.h>
+#define sensorPin 4
+#define pinIR 12 //Declare sensor pin on 13
+#define pinLedGreen 13 //Declare sensor pin on 13
+#define pinLedRed 5 //Declare sensor pin on 13
+
+// constants won't change
+const int TRIG_PIN   = 6; // Arduino pin connected to Ultrasonic Sensor's TRIG pin
+const int ECHO_PIN   = 7; // Arduino pin connected to Ultrasonic Sensor's ECHO pin
+const int BUZZER_PIN = 3; // Arduino pin connected to Piezo Buzzer's pin
+const int DISTANCE_THRESHOLD = 10; // centimeters
+
+const int DisTRIG_PIN   = 9; // Arduino pin connected to Ultrasonic Sensor's TRIG pin
+const int DisECHO_PIN   = 8; // Arduino pin connected to Ultrasonic Sensor's ECHO pin
+const int TwoBUZZER_PIN = 2; // Arduino pin connected to Piezo Buzzer's pin
+
+
+// variables will change:
+float duration_us, distance_cm,distance;
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h>
+
+// Set the LCD address to 0x27 for a 16 chars and 2 line display
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+dht dht11;
+
+void setup() {
+	Serial.begin(9600);
+	Cayenne.begin(username, password, clientID);
+
+  pinMode(TRIG_PIN, OUTPUT);   // set arduino pin to output mode
+  pinMode(ECHO_PIN, INPUT);    // set arduino pin to input mode
+  pinMode(BUZZER_PIN, OUTPUT); // set arduino pin to output mode
+
+  pinMode(DisTRIG_PIN, OUTPUT);   // set arduino pin to output mode
+  pinMode(DisECHO_PIN, INPUT);    // set arduino pin to input mode
+  pinMode(TwoBUZZER_PIN, OUTPUT); // set arduino pin to output mode
+
+  //led green
+  pinMode(pinLedGreen, OUTPUT); // set arduino pin to output mode
+  pinMode(pinLedRed, OUTPUT); // set arduino pin to output mode
+
+  pinMode(pinIR, INPUT); //Declare pin D5 as input
+  Serial.println("IR Detection");
+
+  lcd.begin();
+  // Turn on the blacklight and print a message.
+  lcd.backlight();
+  //lcd.print("Hello, world!");
+  
+}
+
+void loop() {
+	Cayenne.loop();
+
+ delay(1000);
+  int readData = dht11.read11(sensorPin);//pin 7
+  float temp   = dht11.temperature;
+  float humid  = dht11.humidity;
+
+  Serial.print(temp);
+  Serial.print(" c \t");
+  Serial.print(humid);
+  Serial.println("%");
+
+ if (temp >=23){
+ lcd.setCursor(0,0);
+ lcd.print(temp);
+ lcd.setCursor(0,1);
+ lcd.print("High Don't Entre"); 
+  digitalWrite(pinLedGreen, HIGH);  
+ 
+ }
+ else
+ {
+
+lcd.setCursor(0,0);
+ lcd.print(temp);
+ lcd.setCursor(0,1);
+ lcd.print("High Don't Entre"); 
+ digitalWrite(pinLedRed, HIGH);  
+  }
+
+   // generate 10-microsecond pulse to TRIG pin
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  // measure duration of pulse from ECHO pin
+  duration_us = pulseIn(ECHO_PIN, HIGH);
+  // calculate the distance
+  distance_cm = 0.017 * duration_us;
+
+  if(distance_cm < DISTANCE_THRESHOLD)
+    digitalWrite(BUZZER_PIN, HIGH); // turn on Piezo Buzzer
+  else
+    digitalWrite(BUZZER_PIN, LOW);  // turn off Piezo Buzzer
+
+  // print the value to Serial Monitor
+  Serial.print("distance One: ");
+  Serial.print(distance_cm);
+  Serial.println(" cm");
+
+  delay(500);
+
+  // generate 10-microsecond pulse to TRIG pin
+  digitalWrite(DisTRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(DisTRIG_PIN, LOW);
+
+  // measure duration of pulse from ECHO pin
+  duration_us = pulseIn(DisECHO_PIN, HIGH);
+  // calculate the distance
+  distance = 0.017 * duration_us;
+
+  if(distance < DISTANCE_THRESHOLD)
+    digitalWrite(TwoBUZZER_PIN, HIGH); // turn on Piezo Buzzer
+  else
+    digitalWrite(TwoBUZZER_PIN, LOW);  // turn off Piezo Buzzer
+
+  // print the value to Serial Monitor
+  Serial.print("distance Two: ");
+  Serial.print(distance_cm);
+  Serial.println(" cm");
+
+  delay(500);
+  
+  //ir sensor code start from here 
+    uint32_t datasensor = digitalRead(pinIR); //instructions for monitoring digital values
+   Serial.print("Sensor Value: ");
+   Serial.println(datasensor);
+   if (datasensor == LOW) { //instruction to activate the LED when an object is detected
+     Serial.println("Object Detected");
+     
+     delay(2000);
+   }
+   else {
+     Serial.println("No Object"); //instruction to activate the LED when an object is detected
+     delay(2000);
+   }
+  //ir sensor code stop from here 
+     Cayenne.virtualWrite(2,temp,TYPE_TEMPERATURE,UNIT_PERCENT);
+   Cayenne.virtualWrite(3,datasensor); 
+ 
+}
+
+// Default function for sending sensor data at intervals to Cayenne.
+// You can also use functions for specific channels, e.g CAYENNE_OUT(1) for sending channel 1 data.
+CAYENNE_OUT_DEFAULT()
+{
+	// Write data to Cayenne here. This example just sends the current uptime in milliseconds on virtual channel 0.
+	Cayenne.virtualWrite(0, millis());
+	// Some examples of other functions you can use to send data.
+	//Cayenne.celsiusWrite(1, 22.0);
+	//Cayenne.luxWrite(2, 700);
+	//Cayenne.virtualWrite(3, 50, TYPE_PROXIMITY, UNIT_CENTIMETER);
+}
+
+// Default function for processing actuator commands from the Cayenne Dashboard.
+// You can also use functions for specific channels, e.g CAYENNE_IN(1) for channel 1 commands.
+CAYENNE_IN_DEFAULT()
+{
+	CAYENNE_LOG("Channel %u, value %s", request.channel, getValue.asString());
+	//Process message here. If there is an error set an error message using getValue.setError(), e.g getValue.setError("Error message");
+}
